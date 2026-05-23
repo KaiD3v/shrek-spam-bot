@@ -1,0 +1,21 @@
+{
+  "name": "shrek-bot",
+  "version": "0.0.1",
+  "description": "Envia coisas para o wpp do João.",
+  "keywords": [
+    "discordjs"
+  ],
+  "license": "ISC",
+  "author": "kaid3v",
+  "type": "module",
+  "main": "./src/index.js",
+  "scripts": {
+    "dev": "nodemon .",
+    "deploy": "node src/helpers/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2",
+    "nodemon": "^3.1.14"
+  }
+}
