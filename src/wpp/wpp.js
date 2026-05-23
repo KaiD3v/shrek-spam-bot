@@ -7,6 +7,8 @@ import qrcode from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
 import { getShrekLines } from "../helpers/shrek/shrek-script.js";
 import { runShrekScript } from "../helpers/shrek/run-shrek-script.js";
+import { patchLidGetChat } from "../helpers/wpp/patch-lid-get-chat.js";
+import { resolveChatId } from "../helpers/wpp/resolve-chat-id.js";
 
 const { Client, LocalAuth } = pkg;
 
@@ -148,7 +150,14 @@ waClient.on("loading_screen", (percent) => {
     console.log(`Loading WhatsApp: ${percent}%`);
 });
 
-waClient.on("ready", markReady);
+waClient.on("ready", async () => {
+    try {
+        await patchLidGetChat(waClient);
+    } catch (error) {
+        console.error("Failed to apply WhatsApp LID patch:", error?.message ?? error);
+    }
+    markReady();
+});
 
 waClient.on("auth_failure", (message) => {
     markNotReady("auth_failure", message);
@@ -188,11 +197,6 @@ function qrAuth(req, res, next) {
         return res.status(401).send("Unauthorized");
     }
     next();
-}
-
-function toChatId(number) {
-    if (number.includes("@")) return number;
-    return `${number.replace(/\D/g, "")}@c.us`;
 }
 
 function getHealthPayload() {
@@ -295,7 +299,8 @@ app.post("/send", auth, async (req, res) => {
     }
 
     try {
-        const sent = await waClient.sendMessage(toChatId(target), message);
+        const chatId = await resolveChatId(waClient, target);
+        const sent = await waClient.sendMessage(chatId, message);
         res.json({ success: true, id: sent.id._serialized });
     } catch (error) {
         console.error(error);
@@ -340,7 +345,14 @@ app.post("/script/shrek", auth, async (req, res) => {
     }
 
     const lines = getShrekLines();
-    const chatId = toChatId(target);
+    let chatId;
+
+    try {
+        chatId = await resolveChatId(waClient, target);
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
+
     const estimatedMinutes = Math.ceil((lines.length * SHREK_DELAY_MS) / 60_000);
 
     scriptJob.running = true;
