@@ -1,5 +1,5 @@
 import { Collection, Events } from "discord.js";
-import { commands } from "../utils/commands-array.js";
+import { commands } from "../../utils/commands-array.js";
 
 function setupCommands(client) {
     client.once(Events.ClientReady, (readyClient) => {

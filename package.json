@@ -11,11 +11,18 @@
   "main": "./src/index.js",
   "scripts": {
     "dev": "nodemon .",
-    "deploy": "node src/helpers/deploy-commands.js"
+    "wpp": "node src/wpp/wpp.js",
+    "wpp:stop": "node scripts/stop-wpp.js",
+    "wpp:reset": "node scripts/stop-wpp.js && rm -rf .wwebjs_auth .wwebjs_cache",
+    "wpp:deps": "bash scripts/install-wpp-deps-arch.sh",
+    "deploy": "node src/helpers/commands/deploy-commands.js"
   },
   "dependencies": {
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
-    "nodemon": "^3.1.14"
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.7"
   }
 }
