@@ -1,5 +1,5 @@
-import { penisCommand } from "../commands/penis.js";
+import { enviarCommand } from "../commands/enviar.js";
 import { pingCommand } from "../commands/ping.js";
-import { testeCommand } from "../commands/teste.js";
+import { shrekCommand } from "../commands/shrek.js";
 
-export const commands = [penisCommand, pingCommand, testeCommand];
+export const commands = [enviarCommand, pingCommand, shrekCommand];

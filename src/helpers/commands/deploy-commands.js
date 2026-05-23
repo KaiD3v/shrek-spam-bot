@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { REST, Routes } from "discord.js";
-import { DISCORD_TOKEN, GUILD_ID } from "../utils/tokens.js";
-import { commands } from "../utils/commands-array.js";
+import { DISCORD_TOKEN, GUILD_ID } from "../../utils/tokens.js";
+import { commands } from "../../utils/commands-array.js";
 
 config();
 
