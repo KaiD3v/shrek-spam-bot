@@ -33,13 +33,23 @@ const puppeteerOptions = {
     ],
 };
 
-if (process.env.CHROME_EXECUTABLE_PATH) {
-    if (!existsSync(process.env.CHROME_EXECUTABLE_PATH)) {
-        console.error(`CHROME_EXECUTABLE_PATH not found: ${process.env.CHROME_EXECUTABLE_PATH}`);
-        process.exit(1);
-    }
-    puppeteerOptions.executablePath = process.env.CHROME_EXECUTABLE_PATH;
-    console.log(`Using Chrome at ${process.env.CHROME_EXECUTABLE_PATH}`);
+const SYSTEM_CHROME_PATHS = [
+    process.env.CHROME_EXECUTABLE_PATH,
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome-stable",
+].filter(Boolean);
+
+const chromePath = SYSTEM_CHROME_PATHS.find((path) => existsSync(path));
+
+if (process.env.CHROME_EXECUTABLE_PATH && !chromePath) {
+    console.error(`CHROME_EXECUTABLE_PATH not found: ${process.env.CHROME_EXECUTABLE_PATH}`);
+    process.exit(1);
+}
+
+if (chromePath) {
+    puppeteerOptions.executablePath = chromePath;
+    console.log(`Using Chrome at ${chromePath}`);
 } else {
     console.log("Using Puppeteer bundled Chrome");
 }
