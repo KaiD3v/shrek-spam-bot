@@ -75,6 +75,8 @@ const scriptJob = {
     error: null,
 };
 
+let currentQr = null;
+
 let readyPromise = createReadyPromise();
 
 function createReadyPromise() {
@@ -98,6 +100,7 @@ function markReady() {
 
     state.isReady = true;
     state.status = "ready";
+    currentQr = null;
     readyPromise.resolve();
     console.log("WhatsApp client is ready!");
 }
@@ -121,8 +124,16 @@ const waClient = new Client({
 
 waClient.on("qr", (qr) => {
     markNotReady("qr");
-    console.log("Scan the QR code with WhatsApp (Aparelhos conectados):");
-    qrcode.generate(qr, { small: true });
+    currentQr = qr;
+
+    const qrPageUrl = getAuthQrUrl();
+    console.log("Escaneie o QR code no WhatsApp (Aparelhos conectados):");
+    console.log(`Abra no navegador: ${qrPageUrl}`);
+
+    if (!process.env.RAILWAY_ENVIRONMENT) {
+        qrcode.generate(qr, { small: true });
+    }
+
     console.log("Waiting for authentication...");
 });
 
@@ -158,6 +169,27 @@ function auth(req, res, next) {
     next();
 }
 
+function getPublicBaseUrl() {
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    if (process.env.PUBLIC_BASE_URL) {
+        return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+    }
+    return `http://localhost:${PORT}`;
+}
+
+function getAuthQrUrl() {
+    return `${getPublicBaseUrl()}/auth/qr?secret=${encodeURIComponent(API_SECRET)}`;
+}
+
+function qrAuth(req, res, next) {
+    if (req.query.secret !== API_SECRET) {
+        return res.status(401).send("Unauthorized");
+    }
+    next();
+}
+
 function toChatId(number) {
     if (number.includes("@")) return number;
     return `${number.replace(/\D/g, "")}@c.us`;
@@ -172,7 +204,7 @@ function getHealthPayload() {
         hint: state.isReady
             ? null
             : state.status === "qr"
-              ? "Escaneie o QR code no terminal do npm run wpp"
+              ? `Abra ${getAuthQrUrl()} no navegador e escaneie o QR`
               : "Aguarde a sincronizacao do WhatsApp terminar",
     };
 }
@@ -193,6 +225,48 @@ async function waitForReady(timeoutMs) {
 
 const app = express();
 app.use(express.json());
+
+app.get("/auth/qr", qrAuth, (_req, res) => {
+    if (state.isReady) {
+        return res.type("html").send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>WhatsApp</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:2rem">
+<h1>WhatsApp conectado</h1><p>A sessao ja esta autenticada.</p>
+</body></html>`);
+    }
+
+    if (!currentQr) {
+        return res.type("html").send(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="refresh" content="3">
+<title>WhatsApp QR</title></head>
+<body style="font-family:sans-serif;text-align:center;padding:2rem">
+<h1>Aguardando QR code...</h1><p>Esta pagina atualiza sozinha a cada 3 segundos.</p>
+</body></html>`);
+    }
+
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(currentQr)}`;
+
+    res.type("html").send(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="5">
+  <title>WhatsApp QR</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; background: #111; color: #eee; }
+    img { background: #fff; padding: 1rem; border-radius: 12px; max-width: 100%; height: auto; }
+    p { color: #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Escaneie com WhatsApp</h1>
+  <p>WhatsApp → Aparelhos conectados → Conectar aparelho</p>
+  <img src="${qrImageUrl}" width="512" height="512" alt="QR Code WhatsApp">
+  <p>O QR expira em ~20s. Esta pagina atualiza a cada 5 segundos.</p>
+</body>
+</html>`);
+});
 
 app.get("/health", auth, (_req, res) => {
     res.json(getHealthPayload());
@@ -378,6 +452,12 @@ async function initializeWhatsApp() {
 
 const server = app.listen(PORT, () => {
     console.log(`WhatsApp API listening on http://localhost:${PORT}`);
+
+    if (process.env.RAILWAY_ENVIRONMENT && !process.env.RAILWAY_PUBLIC_DOMAIN) {
+        console.warn(
+            "RAILWAY_PUBLIC_DOMAIN nao definido. Gere um dominio publico no Railway (Settings → Networking → Generate Domain).",
+        );
+    }
 });
 
 server.on("error", (error) => {
