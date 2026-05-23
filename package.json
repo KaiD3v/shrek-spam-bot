@@ -1,7 +1,7 @@
 {
-  "name": "shrek-bot",
+  "name": "shrek-spam-bot",
   "version": "0.0.1",
-  "description": "Envia coisas para o wpp do João.",
+  "description": "Bot para infernizar um amigo.",
   "keywords": [
     "discordjs"
   ],
