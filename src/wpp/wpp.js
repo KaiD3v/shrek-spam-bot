@@ -12,7 +12,7 @@ const { Client, LocalAuth } = pkg;
 
 config();
 
-const PORT = process.env.WPP_PORT ?? 3001;
+const PORT = process.env.PORT ?? process.env.WPP_PORT ?? 3001;
 const API_SECRET = process.env.WPP_API_SECRET;
 const DEFAULT_TARGET = process.env.WHATSAPP_TARGET;
 const INIT_RETRIES = Number(process.env.WPP_INIT_RETRIES ?? 3);

@@ -10,6 +10,7 @@
   "type": "module",
   "main": "./src/index.js",
   "scripts": {
+    "start": "node scripts/start.js",
     "wpp:start": "node src/wpp/wpp.js",
     "dev": "nodemon .",
     "wpp": "node src/wpp/wpp.js",
