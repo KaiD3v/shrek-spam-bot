@@ -21,6 +21,11 @@ const INIT_RETRIES = Number(process.env.WPP_INIT_RETRIES ?? 3);
 const READY_TIMEOUT_MS = Number(process.env.WPP_READY_TIMEOUT_MS ?? 120_000);
 const SEND_READY_WAIT_MS = Number(process.env.WPP_SEND_READY_WAIT_MS ?? 30_000);
 const SHREK_DELAY_MS = Number(process.env.SHREK_DELAY_MS ?? 250);
+const SHREK_EFFECTIVE_DELAY_MS = process.env.RAILWAY_ENVIRONMENT
+    ? Math.max(SHREK_DELAY_MS, 600)
+    : SHREK_DELAY_MS;
+const SHREK_BATCH_SIZE = Number(process.env.SHREK_BATCH_SIZE ?? 20);
+const SHREK_BATCH_PAUSE_MS = Number(process.env.SHREK_BATCH_PAUSE_MS ?? 5000);
 const PUPPETEER_PROTOCOL_TIMEOUT_MS = Number(process.env.PUPPETEER_PROTOCOL_TIMEOUT_MS ?? 300_000);
 
 const puppeteerOptions = {
@@ -73,6 +78,7 @@ const state = {
 const scriptJob = {
     running: false,
     sent: 0,
+    failed: 0,
     total: 0,
     startedAt: null,
     finishedAt: null,
@@ -314,6 +320,7 @@ app.get("/script/status", auth, (_req, res) => {
     res.json({
         running: scriptJob.running,
         sent: scriptJob.sent,
+        failed: scriptJob.failed,
         total: scriptJob.total,
         startedAt: scriptJob.startedAt,
         finishedAt: scriptJob.finishedAt,
@@ -355,7 +362,11 @@ app.post("/script/shrek", auth, async (req, res) => {
         return res.status(400).json({ error: error.message });
     }
 
-    const estimatedMinutes = Math.ceil((lines.length * SHREK_DELAY_MS) / 60_000);
+    const estimatedMinutes = Math.ceil(
+        (lines.length * SHREK_EFFECTIVE_DELAY_MS +
+            Math.floor(lines.length / SHREK_BATCH_SIZE) * SHREK_BATCH_PAUSE_MS) /
+            60_000,
+    );
 
     console.log(`Starting Shrek script: ${lines.length} messages to ${chatId}`);
 
@@ -370,6 +381,7 @@ app.post("/script/shrek", auth, async (req, res) => {
 
     scriptJob.running = true;
     scriptJob.sent = 0;
+    scriptJob.failed = 0;
     scriptJob.total = lines.length;
     scriptJob.startedAt = new Date().toISOString();
     scriptJob.finishedAt = null;
@@ -379,22 +391,31 @@ app.post("/script/shrek", auth, async (req, res) => {
         started: true,
         total: lines.length,
         estimatedMinutes,
-        delayMs: SHREK_DELAY_MS,
+        delayMs: SHREK_EFFECTIVE_DELAY_MS,
+        batchSize: SHREK_BATCH_SIZE,
+        batchPauseMs: SHREK_BATCH_PAUSE_MS,
     });
 
     runShrekScript(waClient, chatId, {
-        delayMs: SHREK_DELAY_MS,
+        delayMs: SHREK_EFFECTIVE_DELAY_MS,
+        batchSize: SHREK_BATCH_SIZE,
+        batchPauseMs: SHREK_BATCH_PAUSE_MS,
         lines,
-        onProgress: (sent, total) => {
+        target,
+        onProgress: (sent, total, failed = 0) => {
             scriptJob.sent = sent;
+            scriptJob.failed = failed;
             scriptJob.total = total;
             if (sent % 50 === 0 || sent === total) {
-                console.log(`Shrek script progress: ${sent}/${total}`);
+                console.log(`Shrek script progress: ${sent}/${total} (${failed} falhas)`);
             }
         },
     })
-        .then(() => {
-            console.log(`Shrek script finished: ${scriptJob.sent} messages sent`);
+        .then(({ sent, failed, total }) => {
+            console.log(`Shrek script finished: ${sent}/${total} enviadas (${failed} falhas)`);
+            if (failed > 0) {
+                scriptJob.error = `${failed} linhas falharam`;
+            }
         })
         .catch((error) => {
             scriptJob.error = error.message;
