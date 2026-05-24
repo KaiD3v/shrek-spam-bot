@@ -7,7 +7,7 @@ import qrcode from "qrcode-terminal";
 import pkg from "whatsapp-web.js";
 import { getShrekLines } from "../helpers/shrek/shrek-script.js";
 import { runShrekScript } from "../helpers/shrek/run-shrek-script.js";
-import { patchLidGetChat } from "../helpers/wpp/patch-lid-get-chat.js";
+import { applyLidPatch } from "../helpers/wpp/lid-sync.js";
 import { resolveChatId } from "../helpers/wpp/resolve-chat-id.js";
 
 const { Client, LocalAuth } = pkg;
@@ -21,10 +21,12 @@ const INIT_RETRIES = Number(process.env.WPP_INIT_RETRIES ?? 3);
 const READY_TIMEOUT_MS = Number(process.env.WPP_READY_TIMEOUT_MS ?? 120_000);
 const SEND_READY_WAIT_MS = Number(process.env.WPP_SEND_READY_WAIT_MS ?? 30_000);
 const SHREK_DELAY_MS = Number(process.env.SHREK_DELAY_MS ?? 250);
+const PUPPETEER_PROTOCOL_TIMEOUT_MS = Number(process.env.PUPPETEER_PROTOCOL_TIMEOUT_MS ?? 300_000);
 
 const puppeteerOptions = {
     headless: true,
     defaultViewport: null,
+    protocolTimeout: PUPPETEER_PROTOCOL_TIMEOUT_MS,
     args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -152,7 +154,7 @@ waClient.on("loading_screen", (percent) => {
 
 waClient.on("ready", async () => {
     try {
-        await patchLidGetChat(waClient);
+        await applyLidPatch(waClient);
     } catch (error) {
         console.error("Failed to apply WhatsApp LID patch:", error?.message ?? error);
     }
@@ -355,14 +357,23 @@ app.post("/script/shrek", auth, async (req, res) => {
 
     const estimatedMinutes = Math.ceil((lines.length * SHREK_DELAY_MS) / 60_000);
 
+    console.log(`Starting Shrek script: ${lines.length} messages to ${chatId}`);
+
+    try {
+        await waClient.sendMessage(chatId, "Shrek incoming...");
+    } catch (error) {
+        return res.status(503).json({
+            error: `Falha ao enviar mensagem inicial: ${error.message}`,
+            ...getHealthPayload(),
+        });
+    }
+
     scriptJob.running = true;
     scriptJob.sent = 0;
     scriptJob.total = lines.length;
     scriptJob.startedAt = new Date().toISOString();
     scriptJob.finishedAt = null;
     scriptJob.error = null;
-
-    console.log(`Starting Shrek script: ${lines.length} messages to ${target}`);
 
     res.status(202).json({
         started: true,

@@ -1,3 +1,5 @@
+import { applyLidPatch, resolveChatIdInBrowser } from "./lid-sync.js";
+
 const chatIdCache = new Map();
 
 export async function resolveChatId(waClient, number) {
@@ -10,19 +12,16 @@ export async function resolveChatId(waClient, number) {
         return chatIdCache.get(digits);
     }
 
-    const numberId = await waClient.getNumberId(digits);
-    if (!numberId?._serialized) {
+    await applyLidPatch(waClient);
+
+    const chatId = await resolveChatIdInBrowser(waClient, digits);
+    if (!chatId) {
         throw new Error(
-            `Numero ${digits} nao encontrado no WhatsApp. Use DDI+DDD+numero (ex: 5511999999999).`,
+            `Nao foi possivel abrir chat com ${digits}. Confira WHATSAPP_TARGET com DDI (ex: 5511999999999) e se o numero tem WhatsApp.`,
         );
     }
 
-    try {
-        await waClient.getChatById(numberId._serialized);
-    } catch {
-        // getChat patch handles LID sync on the next send.
-    }
-
-    chatIdCache.set(digits, numberId._serialized);
-    return numberId._serialized;
+    chatIdCache.set(digits, chatId);
+    console.log(`Chat resolvido: ${digits} -> ${chatId}`);
+    return chatId;
 }
