@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from "discord.js";
 import { sendWhatsAppMessage } from "../utils/wpp-client.js";
+import { deferEphemeral, editEphemeral } from "../utils/discord-reply.js";
 
 const enviarCommand = {
     data: new SlashCommandBuilder()
@@ -18,16 +19,16 @@ const enviarCommand = {
                 .setRequired(false),
         ),
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        if (!(await deferEphemeral(interaction))) return;
 
         const message = interaction.options.getString("mensagem");
         const to = interaction.options.getString("numero");
 
         try {
             await sendWhatsAppMessage({ message, to });
-            await interaction.editReply("Mensagem enviada no WhatsApp.");
+            await editEphemeral(interaction, "Mensagem enviada no WhatsApp.");
         } catch (error) {
-            await interaction.editReply(`Falha ao enviar: ${error.message}`);
+            await editEphemeral(interaction, `Falha ao enviar: ${error.message}`);
         }
     },
 };

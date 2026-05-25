@@ -6,4 +6,8 @@ export const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 setupCommands(client);
 
+client.on("error", (error) => {
+    console.error("Discord client error:", error);
+});
+
 client.login(DISCORD_TOKEN);
